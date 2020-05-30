@@ -8,17 +8,14 @@ from random import randint
 regex = re.compile(r'>')
 
 def parse_fa(input):
-    head = None
-    sequence =  []
-
+    seq_l =  []
     for line in input:
-        line = line.rstrip() # \n などをとる
-        if regex.search(line) or line == "\n":
-            if head: yield (head, "".join(sequence)) # 溜まったsequenceリストをくっつく
-            head, sequence = line, [] # seq毎でリセット
+        if line == "\n":
+            continue
         else:
-            sequence.append(line)
-    if head: yield(head, "".join(sequence)) # 最後のsequenceのデータを出力
+            line = line.strip()
+            seq_l.append(line)
+    return seq_l # 最後のsequenceのデータを出力
 
 def align(X,Y):
     X_seq = str("First seq: "+ X +"\n")
@@ -42,9 +39,9 @@ if __name__ == "__main__":
 
     # FASTAの標準入力
     inFile = sys.argv[1]  
+    
     with open(inFile, "r") as f:
-        for head,sequence in parse_fa(f):
-            header.append(head) # headerのリスト
+        for sequence in parse_fa(f):
             seq.append(sequence) # seqのリスト
     
     #align(seq[randint(0, len(seq))], seq[randint(0, len(seq))])
