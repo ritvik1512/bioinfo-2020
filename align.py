@@ -4,9 +4,11 @@ import string
 from random import seed
 from random import randint
 from random import choice
+from datetime import datetime
 
 # スコア情報設定
 class scoring:
+    # affine gap penaltyを使用
     def __init__(self, match, mismatch, gap, gap_ex):
         self.match = match
         self.mismatch = mismatch
@@ -66,10 +68,9 @@ class pairing:
             self.Ix[0][j] = -float('inf')
             self.Iy[0][j] = -float('inf')
 
-
+        # 生成された行列に値を入力 (DPとtraceback)
         for i in range(1, i_dim):
             for j in range(1, j_dim):
-                # 生成された行列に値を入力 (DPとtraceback)
                 
                 self.Ix[i][j] = max([self.gap + self.M[i-1][j], self.gap_ex + self.Ix[i-1][j]])
                 self.Ix_trace[i][j] = [self.gap + self.M[i-1][j], self.gap_ex + self.Ix[i-1][j]].index(self.Ix[i][j])
@@ -82,7 +83,6 @@ class pairing:
                 
         matrix_score = [self.Ix[i][j], self.Iy[i][j], self.M[i][j]]
         af_score  = max(matrix_score)
-        print(af_score)
 
         # backtrace用スコア
         self.backtrace = matrix_score.index(af_score)
@@ -116,7 +116,7 @@ class pairing:
                     i -= 1
                     j -= 1
 
-        # 何かが残されたら分を追加
+        # 何かが残されたら分あったら, 追加
         for left in range(i):
             gen_y = gen_y[:0] + '_' + gen_y[0:]
         for left in range(j):
@@ -149,14 +149,12 @@ class data():
     #     out.write(X_seq)
     #     out.write(Y_seq)
 
-
-
 if __name__ == "__main__":
     # 初期化
     header = []
     seq = []
-    seed(1)
-    length = randint(0, 100)
+    seed(datetime.now()) # random
+    length = randint(0, 100) # 入力配列の最大長100までrandomに選択
 
     # FASTAの標準入力
     inFile = sys.argv[1]
@@ -177,15 +175,19 @@ if __name__ == "__main__":
 
     # 入力 sequence
     x, y = seq[randint(0,len(seq))], seq[randint(0,len(seq))]
-    print(x, "\n\n", y)
+    print("----------------入力----------------")
+    print("Sequence1: ", x, "\n", "Sequence2: ",  y)
 
     # pairingメソッドを呼び出して、アラインメント始める
     # paramsはスコアのパラメーター: scoring(match, mismatch, gap_start_penalty, gap_extend_penalty)
     sequence = pairing(x, y, params=scoring(1, -1, -2, -1)) 
     # affine アラインメントスコア
     af_score = sequence.align(x,y)
-    # backtracingから作成されたアラインメント結果
+    # backtracingから作成されたアラインメント
     [res1, res2] = sequence.backtracing(x, y)
 
-    print(res1)
-    print(res2)
+    # 結果出力 (複数解のうち一つ)
+    print("----------------結果----------------")
+    print("Alignment Score: ", af_score)
+    print("Sequence1 after align: ", res1)
+    print("Sequence2 after align: ", res2)
