@@ -47,4 +47,5 @@ if __name__ == "__main__":
             header.append(head) # headerのリスト
             seq.append(sequence) # seqのリスト
     
-    align(seq[randint(0, len(seq))], seq[randint(0, len(seq))])
+    #align(seq[randint(0, len(seq))], seq[randint(0, len(seq))])
+    align(seq[1], seq[2])
