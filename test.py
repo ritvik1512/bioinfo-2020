@@ -1,88 +1,155 @@
-from pprint import pprint
+import sys
+import re
+import string
+from random import seed
+from random import randint
 
-global S
-global E
-global match
-global mismatch
-global MIN
-S   = -2.
-E   = -1
-match = 1.
-mismatch = -1.
-MIN = -float("inf")
+# スコア情報設定
+class score:
+    def __init__(self, match, mismatch, gap, gap_ex):
+        self.match = match
+        self.mismatch = mismatch
+        self.gap = gap # gap開始ペナルティー
+        self.gap_ex = gap_ex # gap伸長ペナルティー
 
-#return match or mismatch score
-def _match(s, t):
-    if t == s:
-        return match
-    else:
-        return mismatch
+    def matching(self, x, y):
+        # match確認
+        if x == y:
+            return self.match
+        else:
+            return self.mismatch
 
-def generate(x, y):
+class matrix:
+    def __init__(self, x, y):
+        self.x = len(x)
+        self.y = len(y)
+    
+    def generate(self, x, y):
         return [[0]*(y) for i in range(x)]
 
-def distance_matrix(s, t):
-    dim_i = len(t) + 1 # x
-    dim_j = len(s) + 1 # y
+    # def initialize(self, x, y):
+    #     for i in range(1, x+1):
+    #         z1 = self.generate(x, y)
+    #         z[i][0]  = -float('inf')
 
-    # DP行列の生成
-    M = generate(1+len(t),1+len(s))
-    X = generate(1+len(t),1+len(s))
-    Y = generate(1+len(t),1+len(s))
+class pairing:
+    def __init__(self,x,y):
+        self.x = x
+        self.y = y
 
-    # 生成された行列の初期化  (affineベースケース)
-    for i in range(1, dim_i):
-        M[i][0] = -float('inf')
-        X[i][0] = -float('inf')
-        Y[i][0] = S + i*E
+    # aligment 行列の作成とaffine-scoreの計算
+    def align(self,x,y): 
+        # X, Yはアラインメントの対象になるシークエンス
+        mat = matrix(x,y)
+        params = score(1, -1, -2, -1) #指定されたパラメーター
 
-    for j in range(1, dim_j):
-        M[0][j] = -float('inf')
-        X[0][j] = S + j*E
-        Y[0][j] = -float('inf')
+        # dimensions
+        i_dim = len(x)+1
+        j_dim = len(y)+1
 
-    for i in range(1, dim_i):
-        for j in range(1, dim_j):
-            X[i][j] = max(S + E + M[i][j-1], E + X[i][j-1])
-            Y[i][j] = max(S + E + M[i-1][j], E + Y[i-1][j])
-            M[i][j] = max(_match(s[j-1], t[i-1]) + M[i-1][j-1], X[i][j], Y[i][j])
+        # DP行列の生成
+        M = mat.generate(1+len(x),1+len(y))
+        Ix = mat.generate(1+len(x),1+len(y))
+        Iy = mat.generate(1+len(x),1+len(y))
+
+        # 生成された行列の初期化
+        for i in range(1, i_dim):
+            M[i][0] = -float('inf')
+            Ix[i][0] = -float('inf')
+            Iy[i][0] = params.gap + i*params.gap_ex # affine-gap計算
+
+        for j in range(1, j_dim):
+            M[0][j] = -float('inf')
+            Ix[0][j] = params.gap + j*params.gap_ex # affine-gap計算
+            Iy[0][j] = -float('inf')
+
+        for i in range(1, i_dim):
+            for j in range(1, j_dim):
+                M[i][j]  = params.matching(x[i-1], y[j-1]) + max(M[i-1][j-1], Ix[i-1][j-1], Iy[i-1][j-1])
+                Ix[i][j] = max(params.gap + params.gap_ex + M[i][j-1], params.gap_ex + Ix[i][j-1], params.gap + params.gap_ex + Iy[i][j-1])
+                Iy[i][j] = max(params.gap + params.gap_ex + M[i-1][j], params.gap + params.gap_ex + Ix[i-1][j], params.gap_ex + Iy[i-1][j])
+        
+        af_score  = max(M[i_dim-1][j_dim-1], Ix[i_dim-1][j_dim-1], Iy[i_dim-1][j_dim-1])
+        print(af_score)
+
+        return [M, Ix, Iy], af_score
+
+    def backtrace(self, x, y, M, Ix, Iy, params = score(1, -1, -2, -1)):
+        genseq1, genseq2 = '', ''
+        i = len(x)
+        j = len(y)
+
+        print(i, j)
+
+        while (j>0 or i>0):
+            if (j>0 and i>0 and M[i][j] == M[i-1][j-1] + params.matching(x[i-1], y[j-1])):
+                genseq1 += x[i-1]
+                genseq2 += y[j-1]
+                i -= 1
+                j -= 1
+                print("first l", i, " ", j)
+            elif (j>0 and M[i][j] == Iy[i][j]):
+                genseq1 += '_'
+                genseq2 += x[i-1]
+                j -= 1
+                print("second l", i, " ", j)
+            elif (i>0 and M[i][j] == Ix[i][j]):
+                genseq1 += y[j-1]
+                genseq2 += '_'
+                i -= 1
+                print("third l", i, " ", j)
+
+        genseq1r = ' '.join([genseq1[j] for j in range(-1, -(len(genseq1)+1), -1)])
+        genseq2r = ' '.join([genseq2[j] for j in range(-1, -(len(genseq2)+1), -1)])
+
+        return [genseq1r, genseq2r]
+
+class parse():
+    # FASTA入力の解析
+    def parse_fa(self, input):
+        head = None
+        seq_l =  []
+
+        for line in input:
+            line = line.rstrip() # \n などをとる
+            if regex.search(line) or line == "\n":
+                if head: yield (head, "".join(seq_l)) # 溜まったsequenceリストをくっつく
+                head, seq_l = line, [] # seq毎でリセット
+            else:
+                line = line.translate({ord(c): None for c in string.whitespace})
+                seq_l.append(line)
+        if head: yield(head, "".join(seq_l)) # 最後のsequenceのデータを出力
 
 
-    af_score = max(M[dim_i-2][dim_j-2], X[dim_i-2][dim_j-2], Y[dim_i-2][dim_j-2])
-    print(af_score)
-    return [X, Y, M]
 
-def backtrace(s, t, X, Y, M):
-    sequ1 = ''
-    sequ2 = ''
-    i = len(t) # 2nd arg
-    j = len(s) # 1st arg
-    while (i>0 or j>0):
-        if (i>0 and j>0 and M[i][j] == M[i-1][j-1] + _match(s[j-1], t[i-1])):
-            sequ1 += s[j-1]
-            sequ2 += t[i-1]
-            i -= 1; j -= 1
-        elif (i>0 and M[i][j] == Y[i][j]):
-            sequ1 += '_'
-            sequ2 += t[i-1]
-            i -= 1
-        elif (j>0 and M[i][j] == X[i][j]):
-            sequ1 += s[j-1]
-            sequ2 += '_'
-            j -= 1
+    # X_seq = str("First seq: "+ X +"\n")
+    # Y_seq = str("Second seq: "+ Y +"\n\n")
 
-    sequ1r = ' '.join([sequ1[j] for j in range(-1, -(len(sequ1)+1), -1)])
-    sequ2r = ' '.join([sequ2[j] for j in range(-1, -(len(sequ2)+1), -1)])
+    # with open("man_output.txt", "w") as out:
+    #     out.write(X_seq)
+    #     out.write(Y_seq)
 
-    return [sequ1r, sequ2r]
+if __name__ == "__main__":
+    # 初期化
+    header = []
+    seq = []
+    seed(1)
+    regex = re.compile(r'>')
 
-seq1 = "CTCCCCAGACGAAGTGGATCACGTCTAGTTAACAGAAGTTCACGATACACTAGGGCGGATTATCAGGACATGAAT"
-seq2 = "TCTACGGGCTCCCCACTGTCGTTCGGTGTTATAACCTATAGTCTGACGCAGCG"
+    # FASTAの標準入力
+    inFile = sys.argv[1]
+    parser = parse()
 
-[X, Y, M] = distance_matrix(seq1, seq2)
-#print(X, Y, M, "\n")
-[str1, str2] = backtrace(seq1, seq2, X, Y, M)
-print("-=Alignment=-")
-print(str1)
-print(str2)
-print("\n")
+    with open(inFile, "r") as f:
+        for head,sequence in parser.parse_fa(f):
+            header.append(head) # headerのリスト
+            seq.append(sequence) # seqのリスト
+    x, y = seq[1], seq[2]
+    print(x, "\n\n", y)
+
+    # 呼び出し
+    sequence = pairing(x,y)
+    [M, Ix, Iy], af_score = sequence.align(x,y)
+    [res1, res2] = sequence.backtrace(x, y, M, Ix, Iy, params=score(1, -1, -2, -1))
+    print(res1, "\n\n")
+    print(res2)

@@ -3,6 +3,7 @@ import re
 import string
 from random import seed
 from random import randint
+from random import choice
 
 # スコア情報設定
 class score:
@@ -47,79 +48,96 @@ class pairing:
         i_dim = len(x)+1
         j_dim = len(y)+1
 
-        # DP行列の生成
+        # DP行列の作成
         M = mat.generate(1+len(x),1+len(y))
         Ix = mat.generate(1+len(x),1+len(y))
         Iy = mat.generate(1+len(x),1+len(y))
 
-        # 生成された行列の初期化
-        for i in range(1, i_dim):
-            M[i][0] = -float('inf')
-            Ix[i][0] = -float('inf')
-            Iy[i][0] = params.gap + i*params.gap_ex # affine-gap計算
+        # traceback行列形成
+        M_trace = mat.generate(1+len(x),1+len(y))
+        Ix_trace = mat.generate(1+len(x),1+len(y))
+        Iy_trace = mat.generate(1+len(x),1+len(y))
 
+        # 生成された行列の初期化  (affineベースケース)
+        for i in range(1, i_dim):
+            M[i][0] = params.gap + params.gap_ex*(i-1)
+            Ix[i][0] = -float('inf')
+            Iy[i][0] = -float('inf')
         for j in range(1, j_dim):
-            M[0][j] = -float('inf')
-            Ix[0][j] = params.gap + j*params.gap_ex # affine-gap計算
+            M[0][j] = params.gap + params.gap_ex*(j-1)
+            Ix[0][j] = -float('inf')
             Iy[0][j] = -float('inf')
+
 
         for i in range(1, i_dim):
             for j in range(1, j_dim):
-                M[i][j]  = params.matching(x[i-1], y[j-1]) + max(M[i-1][j-1], Ix[i-1][j-1], Iy[i-1][j-1])
-                Ix[i][j] = max(params.gap + params.gap_ex + M[i][j-1], params.gap_ex + Ix[i][j-1], params.gap + params.gap_ex + Iy[i][j-1])
-                Iy[i][j] = max(params.gap + params.gap_ex + M[i-1][j], params.gap + params.gap_ex + Ix[i-1][j], params.gap_ex + Iy[i-1][j])
-        
-        af_score  = max(M[i_dim-1][j_dim-1], Ix[i_dim-1][j_dim-1], Iy[i_dim-1][j_dim-1])
+                # 生成された行列に値を入力 (DPとtraceback)
+                
+                Ix[i][j] = max([params.gap + M[i-1][j], params.gap_ex + Ix[i-1][j]])
+                Ix_trace[i][j] = [params.gap + M[i-1][j], params.gap_ex + Ix[i-1][j]].index(Ix[i][j])
+
+                Iy[i][j] = max([params.gap + M[i][j-1], params.gap_ex + Iy[i][j-1]])
+                Iy_trace[i][j] = [params.gap + M[i][j-1], params.gap_ex + Iy[i][j-1]].index(Iy[i][j])
+
+                M[i][j]  = max([params.matching(x[i-1], y[j-1]) + M[i-1][j-1], Ix[i][j], Iy[i][j]])
+                M_trace[i][j] = [params.matching(x[i-1], y[j-1]) + M[i-1][j-1], Ix[i][j], Iy[i][j]].index(M[i][j])
+                
+        matrix_score = [Ix[i][j], Iy[i][j], M[i][j]]
+        af_score  = max(matrix_score)
         print(af_score)
 
-        return [M, Ix, Iy], af_score
+        self.backtrace = matrix_score.index(af_score)
+        
+        return [M_trace, Ix_trace, Iy_trace], af_score
 
-    def backtrace(self, x, y, M, Ix, Iy, params = score(1, -1, -2, -1)):
-        genseq1, genseq2 = '', ''
-        i = len(x)
-        j = len(y)
+    def backtracing(self, x, y, M_trace, Ix_trace, Iy_trace, params = score(1, -1, -2, -1)):
+        # 与えられたsequenceから
+        gen_x, gen_y = x, y
 
-        print(i, j)
+        i = len(x) 
+        j = len(y) # start from the bottom right cell
 
-        while (j>0 or i>0):
-            if (j>0 and i>0 and M[i][j] == M[i-1][j-1] + params.matching(x[i-1], y[j-1])):
-                genseq1 += x[i-1]
-                genseq2 += y[j-1]
+        # backtracingから求めたアラインメントの作成
+        while i>0 and j>0:
+            if self.backtrace == 0:
+                if Ix_trace[i][j] == 0:
+                    self.backtrace = 2
+                gen_y = gen_y[:j] + '_' +  gen_y[j:]
                 i -= 1
+            elif self.backtrace == 1:
+                if Iy_trace[i][j] == 0:
+                    self.backtrace = 2
+                gen_x = gen_x[:i] + '_' + gen_x[i:]
                 j -= 1
-                print("first l", i, " ", j)
-            elif (j>0 and M[i][j] == Iy[i][j]):
-                genseq1 += '_'
-                genseq2 += x[i-1]
-                j -= 1
-                print("second l", i, " ", j)
-            elif (i>0 and M[i][j] == Ix[i][j]):
-                genseq1 += y[j-1]
-                genseq2 += '_'
-                i -= 1
-                print("third l", i, " ", j)
+            elif self.backtrace == 2:
+                if M_trace[i][j] == 1:
+                    self.backtrace = 0
+                elif M_trace[i][j] == 2:
+                    self.backtrace = 1
+                else:
+                    i -= 1
+                    j -= 1
 
-        genseq1r = ' '.join([genseq1[j] for j in range(-1, -(len(genseq1)+1), -1)])
-        genseq2r = ' '.join([genseq2[j] for j in range(-1, -(len(genseq2)+1), -1)])
+        # 何かが残されたら分を追加
+        for left in range(i):
+            gen_y = gen_y[:0] + '_' + gen_y[0:]
+        for left in range(j):
+            gen_x = gen_x[:0] + '_' + gen_x[0:]
 
-        return [genseq1r, genseq2r]
+        return [gen_x, gen_y]
 
 class parse():
     # FASTA入力の解析
     def parse_fa(self, input):
-        head = None
         seq_l =  []
 
         for line in input:
-            line = line.rstrip() # \n などをとる
-            if regex.search(line) or line == "\n":
-                if head: yield (head, "".join(seq_l)) # 溜まったsequenceリストをくっつく
-                head, seq_l = line, [] # seq毎でリセット
+            if line == "\n":
+                continue
             else:
-                line = line.translate({ord(c): None for c in string.whitespace})
+                line = line.strip()
                 seq_l.append(line)
-        if head: yield(head, "".join(seq_l)) # 最後のsequenceのデータを出力
-
+        return seq_l # 最後のsequenceのデータを出力
 
 
     # X_seq = str("First seq: "+ X +"\n")
@@ -129,27 +147,42 @@ class parse():
     #     out.write(X_seq)
     #     out.write(Y_seq)
 
+def DNA(length):
+        return ''.join(choice('CGTA') for _ in range(length))
+
 if __name__ == "__main__":
     # 初期化
     header = []
     seq = []
     seed(1)
-    regex = re.compile(r'>')
 
     # FASTAの標準入力
-    inFile = sys.argv[1]
+    #inFile = sys.argv[1]
     parser = parse()
 
-    with open(inFile, "r") as f:
-        for head,sequence in parser.parse_fa(f):
-            header.append(head) # headerのリスト
-            seq.append(sequence) # seqのリスト
-    x, y = seq[1], seq[2]
-    print(x, "\n\n", y)
+    # DNAのFAファイル作成
+    # with open(inFile, "w") as f:
+    #     for s in range(10):
+    #         f.write(DNA(randint(0, 100)))
+    #         f.write("\n\n")
+
+    # # FAファイル解析
+    # with open(inFile, "r") as f:
+    #     for sequence in parser.parse_fa(f):
+    #         seq.append(sequence) # seqのリスト
+
+    # x, y = seq[1], seq[2]
+    # print(x, "\n\n", y)
 
     # 呼び出し
+    x = "CTCCCCAGACGAAGTGGATCACGTCTAGTTAACAGAAGTTCACGATACACTAGGGCGGATTATCAGGACATGAAT"
+    y = "TCTACGGGCTCCCCACTGTCGTTCGGTGTTATAACCTATAGTCTGACGCAGCG"
+
+    # x = "TTTAGCAA"
+    # y = "TAGC"
+
     sequence = pairing(x,y)
-    [M, Ix, Iy], af_score = sequence.align(x,y)
-    [res1, res2] = sequence.backtrace(x, y, M, Ix, Iy, params=score(1, -1, -2, -1))
-    print(res1, "\n\n")
+    [M_trace, Ix_trace, Iy_trace], af_score = sequence.align(x,y)
+    [res1, res2] = sequence.backtracing(x, y, M_trace, Ix_trace, Iy_trace, params=score(1, -1, -2, -1))
+    print(res1)
     print(res2)
