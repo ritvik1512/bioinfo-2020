@@ -84,7 +84,7 @@ class pairing:
         matrix_score = [self.Ix[i][j], self.Iy[i][j], self.M[i][j]]
         af_score  = max(matrix_score)
 
-        # backtrace用スコア
+        # backtrace用スコア (tracebackの開始位置->af_score)
         self.backtrace = matrix_score.index(af_score)
         
         return af_score
@@ -159,18 +159,18 @@ if __name__ == "__main__":
     # FASTAの標準入力
     inFile = sys.argv[1]
 
-    # dataメソッドでDNA配列の作成と受け取り (前処理)
-    sequence = data()
+    # dataクラスでDNA配列の作成と受け取り (前処理)
+    seq_data = data()
 
     # randomでDNA sequenceのFAファイル作成
     with open(inFile, "w") as f:
         for s in range(10):
-            f.write(sequence.DNA(length))
+            f.write(seq_data.DNA(length))
             f.write("\n\n")
 
     # FAファイル解析
     with open(inFile, "r") as f:
-        for each_seq in sequence.parse_fa(f):
+        for each_seq in seq_data.parse_fa(f):
             seq.append(each_seq) # seqのリスト
 
     # 入力 sequence
@@ -178,7 +178,7 @@ if __name__ == "__main__":
     print("----------------入力----------------")
     print("Sequence1: ", x, "\n", "Sequence2: ",  y)
 
-    # pairingメソッドを呼び出して、アラインメント始める
+    # pairingクラスのsequenceインスタンスを呼び出して、アラインメント始める
     # paramsはスコアのパラメーター: scoring(match, mismatch, gap_start_penalty, gap_extend_penalty)
     sequence = pairing(x, y, params=scoring(1, -1, -2, -1)) 
     # affine アラインメントスコア
